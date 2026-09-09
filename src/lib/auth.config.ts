@@ -13,6 +13,7 @@ export type AppJWT = {
 };
 
 export const authConfig = {
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [],
