@@ -6,7 +6,14 @@ import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
 import { useOrgId, useShell } from "@/components/layout/shell-context";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +43,8 @@ type Shift = {
   startTime: string;
   endTime: string;
 };
+
+const NONE = "__none__";
 
 export default function MemberProfilePage() {
   const params = useParams<{ id: string }>();
@@ -205,18 +214,26 @@ export default function MemberProfilePage() {
             <div className="space-y-1">
               <Label>Shift</Label>
               <Select
-                value={profile.shiftId}
-                onChange={(e) =>
-                  setProfile({ ...profile, shiftId: e.target.value })
+                value={profile.shiftId || NONE}
+                onValueChange={(v) =>
+                  setProfile({
+                    ...profile,
+                    shiftId: v === NONE ? "" : v,
+                  })
                 }
               >
-                <option value="">Org default</option>
-                {shifts.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({formatShiftTime(s.startTime)} –{" "}
-                    {formatShiftTime(s.endTime)})
-                  </option>
-                ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Org default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Org default</SelectItem>
+                  {shifts.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} ({formatShiftTime(s.startTime)} –{" "}
+                      {formatShiftTime(s.endTime)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">

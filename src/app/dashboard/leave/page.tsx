@@ -5,11 +5,17 @@ import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
 import { useOrgId } from "@/components/layout/shell-context";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState, Textarea } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/misc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -143,16 +149,20 @@ export default function LeavePage() {
               <div className="space-y-1">
                 <Label>Type</Label>
                 <Select
-                  value={form.typeId}
-                  onChange={(e) => setForm({ ...form, typeId: e.target.value })}
+                  value={form.typeId || undefined}
+                  onValueChange={(v) => setForm({ ...form, typeId: v })}
                   required
                 >
-                  <option value="">Select</option>
-                  {types.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.paid ? "(paid)" : "(unpaid)"}
-                    </option>
-                  ))}
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {types.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} {t.paid ? "(paid)" : "(unpaid)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">

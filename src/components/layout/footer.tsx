@@ -5,10 +5,25 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useShell } from "@/components/layout/shell-context";
 
 const CODES = ["PKR", "USD", "EUR", "GBP", "AED", "INR", "SAR"];
+const NONE = "__none__";
 
 export function Footer() {
   const { user, orgId, currentOrg, refreshOrgs } = useShell();
@@ -22,8 +37,7 @@ export function Footer() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  const canEdit =
-    user.type === "superAdmin" || user.type === "orgAdmin";
+  const canEdit = user.type === "superAdmin" || user.type === "orgAdmin";
 
   async function save() {
     if (!orgId) return;
@@ -88,70 +102,77 @@ export function Footer() {
         ) : null}
       </div>
 
-      {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-xl bg-card p-5 shadow-2xl">
-            <h3 className="text-lg font-semibold text-white">Change currency</h3>
-            <p className="mt-1 text-sm text-gray-400">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change currency</DialogTitle>
+            <DialogDescription>
               Amounts are stored in base currency. Secondary is for display
               conversion (fxRate = base units per 1 secondary).
-            </p>
-            <div className="mt-4 space-y-3">
-              <div className="space-y-1">
-                <Label>Base currency</Label>
-                <Select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                >
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Base currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                   {CODES.map((c) => (
-                    <option key={c} value={c}>
+                    <SelectItem key={c} value={c}>
                       {c}
-                    </option>
+                    </SelectItem>
                   ))}
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Secondary currency</Label>
-                <Select
-                  value={secondaryCurrency}
-                  onChange={(e) => setSecondary(e.target.value)}
-                >
-                  <option value="">None</option>
-                  {CODES.filter((c) => c !== currency).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>FX rate (base per 1 secondary)</Label>
-                <Input
-                  type="number"
-                  min={0.0001}
-                  step="any"
-                  value={fxRate}
-                  onChange={(e) => setFxRate(e.target.value)}
-                />
-              </div>
-              {error ? <p className="text-sm text-red-400">{error}</p> : null}
-              {msg ? <p className="text-sm text-teal-400">{msg}</p> : null}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="ghost"
-                  disabled={pending}
-                  onClick={() => setOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={save} loading={pending}>
-                  Save
-                </Button>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
+            <div className="space-y-1">
+              <Label>Secondary currency</Label>
+              <Select
+                value={secondaryCurrency || NONE}
+                onValueChange={(v) => setSecondary(v === NONE ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {CODES.filter((c) => c !== currency).map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>FX rate (base per 1 secondary)</Label>
+              <Input
+                type="number"
+                min={0.0001}
+                step="any"
+                value={fxRate}
+                onChange={(e) => setFxRate(e.target.value)}
+              />
+            </div>
+            {error ? <p className="text-sm text-red-400">{error}</p> : null}
+            {msg ? <p className="text-sm text-teal-400">{msg}</p> : null}
           </div>
-        </div>
-      ) : null}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={save} loading={pending}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </footer>
   );
 }

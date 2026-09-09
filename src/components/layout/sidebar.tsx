@@ -146,21 +146,22 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-2 border-t border-white/5 p-3">
-        <button
+        <Button
           type="button"
-          className="hidden w-full items-center justify-center rounded-lg p-2 text-gray-400 hover:bg-muted hover:text-white md:flex"
+          variant="ghost"
+          className="hidden w-full justify-center text-gray-400 hover:bg-muted hover:text-white md:flex"
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? "Expand" : "Collapse"}
         >
           {collapsed ? (
             <PanelLeft className="h-4 w-4" />
           ) : (
-            <span className="flex w-full items-center gap-2 text-sm">
+            <>
               <PanelLeftClose className="h-4 w-4" />
               Collapse
-            </span>
+            </>
           )}
-        </button>
+        </Button>
 
         <div
           className={cn(
@@ -195,10 +196,11 @@ export function Sidebar() {
       <div className="hidden h-screen sticky top-0 md:flex">{body}</div>
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 md:hidden">
-          <button
+          <Button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            variant="ghost"
             aria-label="Close menu"
+            className="absolute inset-0 h-auto w-auto rounded-none bg-black/60 p-0 hover:bg-black/60"
             onClick={() => setMobileOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-64 shadow-xl">{body}</div>

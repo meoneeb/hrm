@@ -15,24 +15,6 @@ export function Textarea({
   );
 }
 
-export function Select({
-  className,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={cn(
-        "flex h-8 w-full rounded-md border border-white/15 bg-background px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </select>
-  );
-}
-
 export function PageHeader({
   title,
   description,

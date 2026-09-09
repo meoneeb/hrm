@@ -3,7 +3,14 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +39,8 @@ type Shift = {
   endTime: string;
   graceMinutes: number;
 };
+
+const NONE = "__none__";
 
 const empty = {
   name: "",
@@ -250,15 +259,22 @@ export default function OrgsPage() {
                 <div className="space-y-1">
                   <Label>Default shift</Label>
                   <Select
-                    value={editing.defaultShiftId || ""}
-                    onChange={(e) => setDefaultShift(e.target.value)}
+                    value={editing.defaultShiftId || NONE}
+                    onValueChange={(v) =>
+                      setDefaultShift(v === NONE ? "" : v)
+                    }
                   >
-                    <option value="">None</option>
-                    {shifts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select shift" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>None</SelectItem>
+                      {shifts.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
               ) : null}

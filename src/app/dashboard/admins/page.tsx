@@ -4,7 +4,22 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +39,8 @@ type Admin = {
 };
 
 type Org = { id: string; name: string; code: string };
+
+const ALL = "__all__";
 
 export default function ClientsPage() {
   const { data: session } = useSession();
@@ -248,25 +265,33 @@ export default function ClientsPage() {
 
       <div className="mb-4 flex flex-wrap gap-2">
         <Select
-          className="w-48"
-          value={filterOrg}
-          onChange={(e) => setFilterOrg(e.target.value)}
+          value={filterOrg || ALL}
+          onValueChange={(v) => setFilterOrg(v === ALL ? "" : v)}
         >
-          <option value="">All orgs</option>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="All orgs" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All orgs</SelectItem>
+            {orgs.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
         <Select
-          className="w-40"
-          value={filterPrimary}
-          onChange={(e) => setFilterPrimary(e.target.value)}
+          value={filterPrimary || ALL}
+          onValueChange={(v) => setFilterPrimary(v === ALL ? "" : v)}
         >
-          <option value="">All roles</option>
-          <option value="true">Primary</option>
-          <option value="false">Secondary</option>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="All roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All roles</SelectItem>
+            <SelectItem value="true">Primary</SelectItem>
+            <SelectItem value="false">Secondary</SelectItem>
+          </SelectContent>
         </Select>
       </div>
 
@@ -431,26 +456,17 @@ export default function ClientsPage() {
                 </div>
                 <div className="space-y-1">
                   <Label>Assigned orgs</Label>
-                  <Select
-                    multiple
-                    className="h-28"
+                  <MultiSelect
+                    options={orgs.map((o) => ({
+                      value: o.id,
+                      label: o.name,
+                    }))}
                     value={secondaryForm.orgIds}
-                    onChange={(e) =>
-                      setSecondaryForm({
-                        ...secondaryForm,
-                        orgIds: Array.from(e.target.selectedOptions).map(
-                          (o) => o.value
-                        ),
-                      })
+                    onChange={(orgIds) =>
+                      setSecondaryForm({ ...secondaryForm, orgIds })
                     }
-                    required
-                  >
-                    {orgs.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </Select>
+                    placeholder="Select orgs"
+                  />
                 </div>
                 {displayError ? (
                   <p className="text-sm text-red-400">{displayError}</p>
@@ -556,74 +572,67 @@ export default function ClientsPage() {
         </Card>
       </div>
 
-      {editing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Edit orgAdmin</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={saveEdit} className="space-y-3">
-                <div className="space-y-1">
-                  <Label>Name</Label>
-                  <Input
-                    value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Reset password</Label>
-                  <Input
-                    type="password"
-                    value={editForm.password}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, password: e.target.value })
-                    }
-                    placeholder="Leave blank to keep"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Assigned orgs</Label>
-                  <Select
-                    multiple
-                    className="h-28"
-                    value={editForm.orgIds}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        orgIds: Array.from(e.target.selectedOptions).map(
-                          (o) => o.value
-                        ),
-                      })
-                    }
-                  >
-                    {orgs.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => setEditing(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={pending}>
-                    Save
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+      <Dialog
+        open={!!editing}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit orgAdmin</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveEdit} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Name</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Reset password</Label>
+              <Input
+                type="password"
+                value={editForm.password}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, password: e.target.value })
+                }
+                placeholder="Leave blank to keep"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Assigned orgs</Label>
+              <MultiSelect
+                options={orgs.map((o) => ({
+                  value: o.id,
+                  label: o.name,
+                }))}
+                value={editForm.orgIds}
+                onChange={(orgIds) =>
+                  setEditForm({ ...editForm, orgIds })
+                }
+                placeholder="Select orgs"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setEditing(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={pending}>
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,7 +6,23 @@ import { useSession } from "next-auth/react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useOrgId, useShell } from "@/components/layout/shell-context";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +51,8 @@ type Project = { id: string; name: string };
 type Shift = { id: string; name: string; startTime?: string; endTime?: string };
 
 const ORG_USER_TYPES = new Set(["orgAdmin", "projectManager", "member"]);
+
+const NONE = "__none__";
 
 function roleRank(u: Member) {
   if (u.type === "orgAdmin" && u.primary) return 0;
@@ -370,219 +388,225 @@ export default function MembersPage() {
         </>
       )}
 
-      {showForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <Card className="max-h-[90vh] w-full max-w-lg overflow-y-auto shadow-2xl">
-            <CardHeader>
-              <CardTitle>Add user</CardTitle>
-              <p className="text-sm text-gray-400">
-                Primary orgAdmin is created via Clients. Here you can add a
-                secondary orgAdmin, PM, or member for this org.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={onCreate} className="space-y-3">
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add user</DialogTitle>
+            <DialogDescription>
+              Primary orgAdmin is created via Clients. Here you can add a
+              secondary orgAdmin, PM, or member for this org.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onCreate} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) =>
+                  setForm({ ...form, email: e.target.value })
+                }
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) =>
+                  setForm({ ...form, password: e.target.value })
+                }
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="Min. 6 characters"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(type) => setForm({ ...form, type })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">member</SelectItem>
+                    <SelectItem value="projectManager">
+                      projectManager
+                    </SelectItem>
+                    {canAddOrgAdmin ? (
+                      <SelectItem value="orgAdmin">
+                        orgAdmin (secondary)
+                      </SelectItem>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isStaffType ? (
                 <div className="space-y-1">
-                  <Label>Name</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                  />
+                  <Label>Scope</Label>
+                  <Select
+                    value={form.scope}
+                    onValueChange={(scope) => setForm({ ...form, scope })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select scope" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="org">Whole org</SelectItem>
+                      <SelectItem value="projects">
+                        Specific projects
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              ) : (
                 <div className="space-y-1">
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    required
-                  />
+                  <Label>Access</Label>
+                  <Input value="Org-wide (secondary)" disabled />
                 </div>
-                <div className="space-y-1">
-                  <Label>Password</Label>
-                  <Input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) =>
-                      setForm({ ...form, password: e.target.value })
-                    }
-                    required
-                    minLength={6}
-                    autoComplete="new-password"
-                    placeholder="Min. 6 characters"
-                  />
-                </div>
+              )}
+            </div>
+            {isStaffType && form.scope === "projects" ? (
+              <div className="space-y-1">
+                <Label>Projects</Label>
+                <MultiSelect
+                  options={projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                  }))}
+                  value={form.projIds}
+                  onChange={(projIds) => setForm({ ...form, projIds })}
+                  placeholder="Select projects"
+                />
+              </div>
+            ) : null}
+            {isStaffType ? (
+              <>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label>Type</Label>
-                    <Select
-                      value={form.type}
+                    <Label>Code</Label>
+                    <Input
+                      value={form.code}
                       onChange={(e) =>
-                        setForm({ ...form, type: e.target.value })
+                        setForm({ ...form, code: e.target.value })
                       }
-                    >
-                      <option value="member">member</option>
-                      <option value="projectManager">projectManager</option>
-                      {canAddOrgAdmin ? (
-                        <option value="orgAdmin">
-                          orgAdmin (secondary)
-                        </option>
-                      ) : null}
-                    </Select>
+                    />
                   </div>
-                  {isStaffType ? (
-                    <div className="space-y-1">
-                      <Label>Scope</Label>
-                      <Select
-                        value={form.scope}
-                        onChange={(e) =>
-                          setForm({ ...form, scope: e.target.value })
-                        }
-                      >
-                        <option value="org">Whole org</option>
-                        <option value="projects">Specific projects</option>
-                      </Select>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <Label>Access</Label>
-                      <Input value="Org-wide (secondary)" disabled />
-                    </div>
-                  )}
-                </div>
-                {isStaffType && form.scope === "projects" ? (
                   <div className="space-y-1">
-                    <Label>Projects</Label>
-                    <Select
-                      multiple
-                      className="h-24"
-                      value={form.projIds}
+                    <Label>Designation</Label>
+                    <Input
+                      value={form.designation}
+                      onChange={(e) =>
+                        setForm({ ...form, designation: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Shift</Label>
+                  <Select
+                    value={form.shiftId || NONE}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        shiftId: v === NONE ? "" : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Org default / auto General" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>
+                        Org default / auto General
+                      </SelectItem>
+                      {shifts.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} ({s.startTime}–{s.endTime})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label>Basic</Label>
+                    <Input
+                      type="number"
+                      value={form.basic}
+                      onChange={(e) =>
+                        setForm({ ...form, basic: Number(e.target.value) })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Allow</Label>
+                    <Input
+                      type="number"
+                      value={form.allowances}
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          projIds: Array.from(e.target.selectedOptions).map(
-                            (o) => o.value
-                          ),
+                          allowances: Number(e.target.value),
                         })
                       }
-                    >
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </Select>
+                    />
                   </div>
-                ) : null}
-                {isStaffType ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label>Code</Label>
-                        <Input
-                          value={form.code}
-                          onChange={(e) =>
-                            setForm({ ...form, code: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Designation</Label>
-                        <Input
-                          value={form.designation}
-                          onChange={(e) =>
-                            setForm({ ...form, designation: e.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Shift</Label>
-                      <Select
-                        value={form.shiftId}
-                        onChange={(e) =>
-                          setForm({ ...form, shiftId: e.target.value })
-                        }
-                      >
-                        <option value="">Org default / auto General</option>
-                        {shifts.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.startTime}–{s.endTime})
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <Label>Basic</Label>
-                        <Input
-                          type="number"
-                          value={form.basic}
-                          onChange={(e) =>
-                            setForm({ ...form, basic: Number(e.target.value) })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Allow</Label>
-                        <Input
-                          type="number"
-                          value={form.allowances}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              allowances: Number(e.target.value),
-                            })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Deduct</Label>
-                        <Input
-                          type="number"
-                          value={form.deductions}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              deductions: Number(e.target.value),
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-                {isOrgAdminType ? (
-                  <p className="text-xs text-gray-400">
-                    Creates a secondary orgAdmin linked to the current
-                    organization. Primary orgAdmins are registered under
-                    Clients.
-                  </p>
-                ) : null}
-                {displayError ? (
-                  <p className="text-sm text-red-400">{displayError}</p>
-                ) : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => setShowForm(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={pending}>
-                    Create
-                  </Button>
+                  <div className="space-y-1">
+                    <Label>Deduct</Label>
+                    <Input
+                      type="number"
+                      value={form.deductions}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          deductions: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+              </>
+            ) : null}
+            {isOrgAdminType ? (
+              <p className="text-xs text-gray-400">
+                Creates a secondary orgAdmin linked to the current
+                organization. Primary orgAdmins are registered under
+                Clients.
+              </p>
+            ) : null}
+            {displayError ? (
+              <p className="text-sm text-red-400">{displayError}</p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={pending}>
+                Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

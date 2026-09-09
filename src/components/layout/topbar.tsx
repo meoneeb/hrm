@@ -2,7 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
-import { Select } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useShell } from "@/components/layout/shell-context";
 import { formatDate } from "@/lib/datetime";
@@ -19,6 +25,8 @@ const TITLES: Record<string, string> = {
   "/dashboard/reports": "Reports",
 };
 
+const ALL = "__all__";
+
 export function Topbar() {
   const pathname = usePathname();
   const {
@@ -33,11 +41,8 @@ export function Topbar() {
   } = useShell();
 
   const title =
-    Object.entries(TITLES).find(
-      ([path]) =>
-        path === "/dashboard"
-          ? pathname === path
-          : pathname.startsWith(path)
+    Object.entries(TITLES).find(([path]) =>
+      path === "/dashboard" ? pathname === path : pathname.startsWith(path)
     )?.[1] || "Dashboard";
 
   const dateLabel = formatDate(new Date());
@@ -60,29 +65,36 @@ export function Topbar() {
         {user.type !== "member" && orgs.length > 0 ? (
           <div className="hidden items-center gap-2 sm:flex">
             <Select
-              className="w-44 md:w-52"
-              value={orgId}
-              onChange={(e) => setOrgId(e.target.value)}
+              value={orgId || undefined}
+              onValueChange={(v) => setOrgId(v)}
             >
-              <option value="">Select org</option>
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name} ({o.code})
-                </option>
-              ))}
+              <SelectTrigger className="w-44 md:w-52">
+                <SelectValue placeholder="Select org" />
+              </SelectTrigger>
+              <SelectContent>
+                {orgs.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.name} ({o.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
             <Select
-              className="w-40 md:w-48"
-              value={projId}
-              onChange={(e) => setProjId(e.target.value)}
+              value={projId || ALL}
+              onValueChange={(v) => setProjId(v === ALL ? "" : v)}
               disabled={!orgId}
             >
-              <option value="">All projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              <SelectTrigger className="w-40 md:w-48">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All projects</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
         ) : null}

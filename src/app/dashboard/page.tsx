@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/misc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { InitialsAvatar } from "@/components/ui/row-actions";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 type Dash = Record<string, number | string | null>;
@@ -90,12 +91,14 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Today&apos;s attendance</CardTitle>
-              <Link
-                href="/dashboard/attendance"
-                className="text-sm text-teal-400 hover:underline"
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-teal-400 hover:bg-transparent hover:text-teal-300 hover:underline"
               >
-                View all
-              </Link>
+                <Link href="/dashboard/attendance">View all</Link>
+              </Button>
             </CardHeader>
             <CardContent className="space-y-3">
               {today.length === 0 ? (
@@ -136,12 +139,14 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Leave requests</CardTitle>
-              <Link
-                href="/dashboard/leave"
-                className="text-sm text-teal-400 hover:underline"
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-teal-400 hover:bg-transparent hover:text-teal-300 hover:underline"
               >
-                Review
-              </Link>
+                <Link href="/dashboard/leave">Review</Link>
+              </Button>
             </CardHeader>
             <CardContent>
               {leaves.length === 0 ? (

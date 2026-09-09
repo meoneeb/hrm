@@ -1,12 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
 import { useOrgId } from "@/components/layout/shell-context";
 import { ClockWidget } from "@/components/attendance/clock-widget";
-import { PageHeader, EmptyState, Select } from "@/components/ui/misc";
+import { PageHeader, EmptyState } from "@/components/ui/misc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,10 +52,13 @@ type Row = {
 
 type User = { id: string; name: string; designation?: string; type: string };
 
+const ALL = "__all__";
+
 export default function AttendancePage() {
   const { data: session } = useSession();
   const orgId = useOrgId();
   const [date, setDate] = useState("");
+  const [memberId, setMemberId] = useState("");
   const [pending, setPending] = useState(false);
   const [viewEod, setViewEod] = useState<Row | null>(null);
   const isMember = session?.user?.type === "member";
@@ -56,7 +74,9 @@ export default function AttendancePage() {
   const attendanceKey = isMember
     ? `/api/attendance${date ? `?date=${date}` : ""}`
     : orgId
-      ? `/api/attendance?orgId=${orgId}${date ? `&date=${date}` : ""}`
+      ? `/api/attendance?orgId=${orgId}${date ? `&date=${date}` : ""}${
+          memberId ? `&userId=${memberId}` : ""
+        }`
       : null;
 
   const usersKey = !isMember && orgId ? `/api/users?orgId=${orgId}` : null;
@@ -67,6 +87,15 @@ export default function AttendancePage() {
     mutate,
   } = useSWR<Row[]>(attendanceKey);
   const { data: users = [] } = useSWR<User[]>(usersKey);
+
+  const memberOptions = useMemo(
+    () => [...users].sort((a, b) => a.name.localeCompare(b.name)),
+    [users]
+  );
+
+  useEffect(() => {
+    setMemberId("");
+  }, [orgId]);
 
   const rows = useMemo(() => {
     const map = Object.fromEntries(users.map((x) => [x.id, x]));
@@ -112,12 +141,33 @@ export default function AttendancePage() {
           <CardTitle className="text-xs font-medium uppercase tracking-wide text-gray-400">
             Attendance records
           </CardTitle>
-          <Input
-            type="date"
-            className="w-full sm:w-48"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            {!isMember ? (
+              <Select
+                value={memberId || ALL}
+                onValueChange={(v) => setMemberId(v === ALL ? "" : v)}
+                disabled={!orgId}
+              >
+                <SelectTrigger className="w-full sm:w-52">
+                  <SelectValue placeholder="All members" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All members</SelectItem>
+                  {memberOptions.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <Input
+              type="date"
+              className="w-full sm:w-48"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
@@ -176,13 +226,15 @@ export default function AttendancePage() {
                     </TD>
                     <TD>
                       {r.eod?.summary ? (
-                        <button
+                        <Button
                           type="button"
-                          className="text-sm text-teal-400 hover:underline"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto px-0 text-teal-400 hover:bg-transparent hover:text-teal-300 hover:underline"
                           onClick={() => setViewEod(r)}
                         >
                           View
-                        </button>
+                        </Button>
                       ) : (
                         <span className="text-gray-600">—</span>
                       )}
@@ -190,16 +242,20 @@ export default function AttendancePage() {
                     {canMark ? (
                       <TD>
                         <Select
-                          className="h-8 w-28 text-xs"
                           value={r.status}
                           disabled={pending}
-                          onChange={(e) => mark(r.id, e.target.value)}
+                          onValueChange={(v) => mark(r.id, v)}
                         >
-                          <option value="present">Present</option>
-                          <option value="absent">Absent</option>
-                          <option value="half_day">Half day</option>
-                          <option value="leave">Leave</option>
-                          <option value="holiday">Holiday</option>
+                          <SelectTrigger className="h-8 w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="present">Present</SelectItem>
+                            <SelectItem value="absent">Absent</SelectItem>
+                            <SelectItem value="half_day">Half day</SelectItem>
+                            <SelectItem value="leave">Leave</SelectItem>
+                            <SelectItem value="holiday">Holiday</SelectItem>
+                          </SelectContent>
                         </Select>
                       </TD>
                     ) : null}
@@ -211,57 +267,54 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
 
-      {viewEod ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <Card className="w-full max-w-md shadow-2xl">
-            <CardContent className="space-y-4 pt-5">
+      <Dialog
+        open={!!viewEod}
+        onOpenChange={(open) => {
+          if (!open) setViewEod(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End of Day report</DialogTitle>
+            <DialogDescription>
+              {viewEod?.user?.name || "Employee"} ·{" "}
+              {viewEod ? formatDateKey(viewEod.date) : ""}
+              {viewEod?.eod?.submittedAt
+                ? ` · ${formatDateTime(viewEod.eod.submittedAt)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                Summary
+              </p>
+              <p className="mt-1 text-white">{viewEod?.eod?.summary || "—"}</p>
+            </div>
+            {viewEod?.eod?.blockers ? (
               <div>
-                <h3 className="text-base font-semibold text-white">
-                  End of Day report
-                </h3>
-                <p className="mt-1 text-sm text-gray-400">
-                  {viewEod.user?.name || "Employee"} ·{" "}
-                  {formatDateKey(viewEod.date)}
-                  {viewEod.eod?.submittedAt
-                    ? ` · ${formatDateTime(viewEod.eod.submittedAt)}`
-                    : ""}
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  Blockers
                 </p>
+                <p className="mt-1 text-white">{viewEod.eod.blockers}</p>
               </div>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Summary
-                  </p>
-                  <p className="mt-1 text-white">
-                    {viewEod.eod?.summary || "—"}
-                  </p>
-                </div>
-                {viewEod.eod?.blockers ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">
-                      Blockers
-                    </p>
-                    <p className="mt-1 text-white">{viewEod.eod.blockers}</p>
-                  </div>
-                ) : null}
-                {viewEod.eod?.nextPlan ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">
-                      Next-day plan
-                    </p>
-                    <p className="mt-1 text-white">{viewEod.eod.nextPlan}</p>
-                  </div>
-                ) : null}
+            ) : null}
+            {viewEod?.eod?.nextPlan ? (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  Next-day plan
+                </p>
+                <p className="mt-1 text-white">{viewEod.eod.nextPlan}</p>
               </div>
-              <div className="flex justify-end">
-                <Button variant="ghost" onClick={() => setViewEod(null)}>
-                  Close
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setViewEod(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

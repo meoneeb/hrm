@@ -10,6 +10,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/misc";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   formatDateKey,
   formatShiftTime,
   formatTime,
@@ -228,71 +236,57 @@ export function ClockWidget() {
         </CardContent>
       </Card>
 
-      {showEod ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <Card className="w-full max-w-md shadow-2xl">
-            <CardContent className="space-y-4 pt-5">
-              <div>
-                <h3 className="text-base font-semibold text-white">
-                  End of Day report
-                </h3>
-                <p className="mt-1 text-sm text-gray-400">
-                  Required before clocking out.
-                </p>
-              </div>
-              <form onSubmit={submitEod} className="space-y-3">
-                <div className="space-y-1">
-                  <Label>Summary *</Label>
-                  <Textarea
-                    value={eod.summary}
-                    onChange={(e) =>
-                      setEod({ ...eod, summary: e.target.value })
-                    }
-                    required
-                    placeholder="What did you accomplish?"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Blockers</Label>
-                  <Textarea
-                    value={eod.blockers}
-                    onChange={(e) =>
-                      setEod({ ...eod, blockers: e.target.value })
-                    }
-                    placeholder="Optional"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Next-day plan</Label>
-                  <Textarea
-                    value={eod.nextPlan}
-                    onChange={(e) =>
-                      setEod({ ...eod, nextPlan: e.target.value })
-                    }
-                    placeholder="Optional"
-                  />
-                </div>
-                {message ? (
-                  <p className="text-sm text-red-400">{message}</p>
-                ) : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => setShowEod(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={pending}>
-                    Submit & clock out
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+      <Dialog open={showEod} onOpenChange={setShowEod}>
+        <DialogContent showClose={!pending}>
+          <DialogHeader>
+            <DialogTitle>End of Day report</DialogTitle>
+            <DialogDescription>
+              Required before clocking out.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitEod} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Summary *</Label>
+              <Textarea
+                value={eod.summary}
+                onChange={(e) => setEod({ ...eod, summary: e.target.value })}
+                required
+                placeholder="What did you accomplish?"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Blockers</Label>
+              <Textarea
+                value={eod.blockers}
+                onChange={(e) => setEod({ ...eod, blockers: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Next-day plan</Label>
+              <Textarea
+                value={eod.nextPlan}
+                onChange={(e) => setEod({ ...eod, nextPlan: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+            {message ? <p className="text-sm text-red-400">{message}</p> : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setShowEod(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={pending}>
+                Submit & clock out
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
