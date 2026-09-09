@@ -45,7 +45,7 @@ const NONE = "__none__";
 const empty = {
   name: "",
   code: "",
-  timezone: "UTC",
+  timezone: "Asia/Karachi",
   currency: "PKR",
   secondaryCurrency: "",
   fxRate: "1",
@@ -63,9 +63,30 @@ export default function OrgsPage() {
     endTime: "18:00",
     graceMinutes: "15",
   });
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
 
   const shiftsKey = editing ? `/api/shifts?orgId=${editing.id}` : null;
   const { data: shifts = [], mutate: mutateShifts } = useSWR<Shift[]>(shiftsKey);
+
+  function resetShiftForm() {
+    setEditingShift(null);
+    setShiftForm({
+      name: "General",
+      startTime: "09:00",
+      endTime: "18:00",
+      graceMinutes: "15",
+    });
+  }
+
+  function startEditShift(s: Shift) {
+    setEditingShift(s);
+    setShiftForm({
+      name: s.name,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      graceMinutes: String(s.graceMinutes ?? 15),
+    });
+  }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -106,6 +127,7 @@ export default function OrgsPage() {
         }),
       });
       setEditing(null);
+      resetShiftForm();
       setForm(empty);
       await mutate();
     } catch (err) {
@@ -117,6 +139,7 @@ export default function OrgsPage() {
 
   function startEdit(o: Org) {
     setEditing(o);
+    resetShiftForm();
     setForm({
       name: o.name,
       code: o.code,
@@ -144,24 +167,59 @@ export default function OrgsPage() {
     }
   }
 
-  async function createShift(e: React.FormEvent) {
+  async function saveShift(e: React.FormEvent) {
     e.preventDefault();
     if (!editing) return;
     setPending(true);
     setError("");
     try {
-      await api("/api/shifts", {
-        method: "POST",
-        body: JSON.stringify({
-          orgId: editing.id,
-          name: shiftForm.name,
-          startTime: shiftForm.startTime,
-          endTime: shiftForm.endTime,
-          graceMinutes: Number(shiftForm.graceMinutes) || 15,
-        }),
-      });
+      const payload = {
+        name: shiftForm.name,
+        startTime: shiftForm.startTime,
+        endTime: shiftForm.endTime,
+        graceMinutes: Number(shiftForm.graceMinutes) || 15,
+      };
+      if (editingShift) {
+        await api(`/api/shifts/${editingShift.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await api("/api/shifts", {
+          method: "POST",
+          body: JSON.stringify({ orgId: editing.id, ...payload }),
+        });
+      }
+      resetShiftForm();
       await mutateShifts();
-      if (!editing.defaultShiftId) await mutate();
+      const updated = await mutate();
+      const fresh = (updated || orgs).find((o) => o.id === editing.id);
+      if (fresh) setEditing({ ...editing, defaultShiftId: fresh.defaultShiftId });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function deleteShift(s: Shift) {
+    if (!editing) return;
+    if (
+      !confirm(
+        `Delete shift “${s.name}”? Members on this shift will fall back to the org default.`
+      )
+    ) {
+      return;
+    }
+    setPending(true);
+    setError("");
+    try {
+      await api(`/api/shifts/${s.id}`, { method: "DELETE" });
+      if (editingShift?.id === s.id) resetShiftForm();
+      await mutateShifts();
+      const updated = await mutate();
+      const fresh = (updated || orgs).find((o) => o.id === editing.id);
+      if (fresh) setEditing(fresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -290,6 +348,7 @@ export default function OrgsPage() {
                     disabled={pending}
                     onClick={() => {
                       setEditing(null);
+                      resetShiftForm();
                       setForm(empty);
                     }}
                   >
@@ -374,7 +433,10 @@ export default function OrgsPage() {
             </p>
           </CardHeader>
           <CardContent className="grid gap-6 lg:grid-cols-2">
-            <form onSubmit={createShift} className="space-y-3">
+            <form onSubmit={saveShift} className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                {editingShift ? "Edit shift" : "Add shift"}
+              </p>
               <div className="space-y-1">
                 <Label>Name</Label>
                 <Input
@@ -412,6 +474,7 @@ export default function OrgsPage() {
                   <Label>Grace</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={shiftForm.graceMinutes}
                     onChange={(e) =>
                       setShiftForm({
@@ -422,9 +485,22 @@ export default function OrgsPage() {
                   />
                 </div>
               </div>
-              <Button type="submit" loading={pending}>
-                Add shift
-              </Button>
+              <div className="flex gap-2">
+                {editingShift ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="flex-1"
+                    disabled={pending}
+                    onClick={resetShiftForm}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button type="submit" className="flex-1" loading={pending}>
+                  {editingShift ? "Save shift" : "Add shift"}
+                </Button>
+              </div>
             </form>
             <div>
               {shifts.length === 0 ? (
@@ -435,7 +511,9 @@ export default function OrgsPage() {
                     <TR>
                       <TH>Name</TH>
                       <TH>Hours</TH>
+                      <TH>Grace</TH>
                       <TH>Default</TH>
+                      <TH className="text-right">Actions</TH>
                     </TR>
                   </THead>
                   <TBody>
@@ -446,6 +524,7 @@ export default function OrgsPage() {
                           {formatShiftTime(s.startTime)} –{" "}
                           {formatShiftTime(s.endTime)}
                         </TD>
+                        <TD className="text-gray-400">{s.graceMinutes}m</TD>
                         <TD>
                           {editing.defaultShiftId === s.id ? (
                             <Badge variant="success">default</Badge>
@@ -459,6 +538,24 @@ export default function OrgsPage() {
                               Make default
                             </Button>
                           )}
+                        </TD>
+                        <TD>
+                          <RowActions
+                            actions={[
+                              {
+                                label: "Edit",
+                                variant: "edit",
+                                disabled: pending,
+                                onClick: () => startEditShift(s),
+                              },
+                              {
+                                label: "Delete",
+                                variant: "delete",
+                                disabled: pending,
+                                onClick: () => deleteShift(s),
+                              },
+                            ]}
+                          />
                         </TD>
                       </TR>
                     ))}

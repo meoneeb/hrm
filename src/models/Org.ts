@@ -18,7 +18,7 @@ const OrgSchema = new Schema<IOrg>(
   {
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, unique: true, uppercase: true, trim: true },
-    timezone: { type: String, default: "UTC" },
+    timezone: { type: String, default: "Asia/Karachi" },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
     currency: { type: String, default: "PKR", uppercase: true, trim: true },
     secondaryCurrency: { type: String, default: null, uppercase: true, trim: true },

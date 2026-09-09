@@ -4,11 +4,13 @@ import { User } from "@/models/User";
 import { requireUser, linkedOrgIds } from "@/lib/rbac";
 import { jsonOk, jsonErr } from "@/lib/utils";
 import { serialize } from "@/lib/serializers";
+import { Org } from "@/models/Org";
 import { resolveEffectiveShift } from "@/lib/org-shift";
 import {
   getShiftDate,
   isOvernight,
   isWithinClockInWindow,
+  resolveOrgTimeZone,
 } from "@/lib/shift";
 
 function shiftLabel(start: string, end: string) {
@@ -49,8 +51,16 @@ export async function GET(req: Request) {
     });
   }
 
+  const org = await Org.findById(orgId);
+  const timeZone = resolveOrgTimeZone(org?.timezone);
+
   const now = new Date();
-  const shiftDate = getShiftDate(now, shift.startTime, shift.endTime);
+  const shiftDate = getShiftDate(
+    now,
+    shift.startTime,
+    shift.endTime,
+    timeZone
+  );
   let attendance = await Attendance.findOne({
     userId: user!.id,
     orgId,
@@ -77,7 +87,8 @@ export async function GET(req: Request) {
     now,
     shift.startTime,
     shift.endTime,
-    shift.graceMinutes ?? 15
+    shift.graceMinutes ?? 15,
+    timeZone
   );
 
   return jsonOk({
@@ -92,6 +103,7 @@ export async function GET(req: Request) {
       label: shiftLabel(shift.startTime, shift.endTime),
     },
     shiftDate,
+    timeZone,
     attendance: attendance ? serialize(attendance) : null,
     canClockIn: inWindow && !openSession && !completedThisShift,
     canClockOut: openSession,

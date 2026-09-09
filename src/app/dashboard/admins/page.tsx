@@ -50,7 +50,7 @@ export default function ClientsPage() {
   const [form, setForm] = useState({
     orgName: "",
     orgCode: "",
-    timezone: "UTC",
+    timezone: "Asia/Karachi",
     currency: "PKR",
     secondaryCurrency: "USD",
     fxRate: "280",
@@ -131,7 +131,7 @@ export default function ClientsPage() {
       setForm({
         orgName: "",
         orgCode: "",
-        timezone: "UTC",
+        timezone: "Asia/Karachi",
         currency: "PKR",
         secondaryCurrency: "USD",
         fxRate: "280",

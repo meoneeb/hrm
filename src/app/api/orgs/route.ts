@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const org = await Org.create({
     name: parsed.data.name,
     code: parsed.data.code.toUpperCase(),
-    timezone: parsed.data.timezone || "UTC",
+    timezone: parsed.data.timezone || "Asia/Karachi",
     currency: (parsed.data.currency || "PKR").toUpperCase(),
     secondaryCurrency: parsed.data.secondaryCurrency
       ? parsed.data.secondaryCurrency.toUpperCase()

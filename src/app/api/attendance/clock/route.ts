@@ -2,6 +2,7 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db";
 import { Attendance } from "@/models/Attendance";
 import { User } from "@/models/User";
+import { Org } from "@/models/Org";
 import { requireUser } from "@/lib/rbac";
 import { jsonOk, jsonErr } from "@/lib/utils";
 import { serialize } from "@/lib/serializers";
@@ -11,6 +12,7 @@ import {
   getShiftDate,
   isOvernight,
   isWithinClockInWindow,
+  resolveOrgTimeZone,
 } from "@/lib/shift";
 
 const schema = z.object({
@@ -61,8 +63,16 @@ export async function POST(req: Request) {
   const shift = await resolveEffectiveShift(user!.id, orgId);
   if (!shift) return jsonErr("No shift configured for this organization", 400);
 
+  const org = await Org.findById(orgId);
+  const timeZone = resolveOrgTimeZone(org?.timezone);
+
   const now = new Date();
-  const shiftDate = getShiftDate(now, shift.startTime, shift.endTime);
+  const shiftDate = getShiftDate(
+    now,
+    shift.startTime,
+    shift.endTime,
+    timeZone
+  );
 
   let record = await Attendance.findOne({
     userId: user!.id,
@@ -83,7 +93,8 @@ export async function POST(req: Request) {
         now,
         shift.startTime,
         shift.endTime,
-        shift.graceMinutes ?? 15
+        shift.graceMinutes ?? 15,
+        timeZone
       )
     ) {
       return jsonErr("Shift has not started yet (or has already ended)", 400);
@@ -103,7 +114,8 @@ export async function POST(req: Request) {
       now,
       shiftDate,
       shift.startTime,
-      shift.graceMinutes ?? 15
+      shift.graceMinutes ?? 15,
+      timeZone
     );
 
     if (record) {
