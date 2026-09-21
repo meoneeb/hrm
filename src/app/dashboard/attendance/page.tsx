@@ -61,8 +61,6 @@ type FormState = {
   status: string;
   clockIn: string;
   clockOut: string;
-  lateMinutes: string;
-  workedMinutes: string;
   note: string;
 };
 
@@ -81,8 +79,6 @@ const emptyForm = (): FormState => ({
   status: "present",
   clockIn: "",
   clockOut: "",
-  lateMinutes: "0",
-  workedMinutes: "",
   note: "",
 });
 
@@ -187,11 +183,6 @@ export default function AttendancePage() {
       status: r.status,
       clockIn: toDatetimeLocal(r.clockIn),
       clockOut: toDatetimeLocal(r.clockOut),
-      lateMinutes: String(r.lateMinutes ?? 0),
-      workedMinutes:
-        r.workedMinutes != null && r.workedMinutes > 0
-          ? String(r.workedMinutes)
-          : "",
       note: r.note || "",
     });
     setEditorOpen(true);
@@ -205,10 +196,6 @@ export default function AttendancePage() {
     try {
       const clockIn = fromDatetimeLocal(form.clockIn);
       const clockOut = fromDatetimeLocal(form.clockOut);
-      const lateMinutes = Number(form.lateMinutes) || 0;
-      const workedRaw = form.workedMinutes.trim();
-      const workedMinutes =
-        workedRaw === "" ? undefined : Math.max(0, Number(workedRaw) || 0);
 
       if (editing) {
         await api(`/api/attendance/${editing.id}`, {
@@ -218,8 +205,6 @@ export default function AttendancePage() {
             status: form.status,
             clockIn,
             clockOut,
-            lateMinutes,
-            workedMinutes,
             note: form.note,
           }),
         });
@@ -236,8 +221,6 @@ export default function AttendancePage() {
             status: form.status,
             clockIn,
             clockOut,
-            lateMinutes,
-            workedMinutes,
             note: form.note || undefined,
           }),
         });
@@ -522,31 +505,10 @@ export default function AttendancePage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label>Late (minutes)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.lateMinutes}
-                  onChange={(e) =>
-                    setForm({ ...form, lateMinutes: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Worked (minutes)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="Auto from clocks"
-                  value={form.workedMinutes}
-                  onChange={(e) =>
-                    setForm({ ...form, workedMinutes: e.target.value })
-                  }
-                />
-              </div>
-            </div>
+            <p className="text-xs text-gray-500">
+              Worked and late minutes are calculated from clock times and the
+              member&apos;s shift.
+            </p>
             <div className="space-y-1">
               <Label>Note</Label>
               <Input

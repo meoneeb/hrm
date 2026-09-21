@@ -2,9 +2,15 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db";
 import { Attendance } from "@/models/Attendance";
 import { User } from "@/models/User";
+import { Org } from "@/models/Org";
 import { requireUser, assertOrgAccess } from "@/lib/rbac";
 import { jsonOk, jsonErr } from "@/lib/utils";
 import { serialize, serializeMany } from "@/lib/serializers";
+import { resolveEffectiveShift } from "@/lib/org-shift";
+import {
+  computeLateMinutes,
+  resolveOrgTimeZone,
+} from "@/lib/shift";
 
 const statusEnum = z.enum([
   "present",
@@ -22,8 +28,6 @@ const createSchema = z.object({
   clockIn: z.string().nullable().optional(),
   clockOut: z.string().nullable().optional(),
   note: z.string().optional(),
-  lateMinutes: z.number().optional(),
-  workedMinutes: z.number().optional(),
 });
 
 function canManageAttendance(type: string) {
@@ -32,21 +36,15 @@ function canManageAttendance(type: string) {
   );
 }
 
-function computeWorked(
+function workedFromClocks(
   clockIn: Date | null | undefined,
-  clockOut: Date | null | undefined,
-  workedMinutes?: number
+  clockOut: Date | null | undefined
 ) {
-  if (workedMinutes !== undefined && !Number.isNaN(workedMinutes)) {
-    return Math.max(0, workedMinutes);
-  }
-  if (clockIn && clockOut) {
-    return Math.max(
-      0,
-      Math.round((clockOut.getTime() - clockIn.getTime()) / 60000)
-    );
-  }
-  return 0;
+  if (!clockIn || !clockOut) return 0;
+  return Math.max(
+    0,
+    Math.round((clockOut.getTime() - clockIn.getTime()) / 60000)
+  );
 }
 
 export async function GET(req: Request) {
@@ -115,11 +113,25 @@ export async function POST(req: Request) {
     return jsonErr("Invalid clockOut", 400);
   }
 
-  const workedMinutes = computeWorked(
-    clockIn,
-    clockOut,
-    parsed.data.workedMinutes
-  );
+  const workedMinutes = workedFromClocks(clockIn, clockOut);
+  let lateMinutes = 0;
+  if (clockIn) {
+    const shift = await resolveEffectiveShift(
+      parsed.data.userId,
+      parsed.data.orgId
+    );
+    const org = await Org.findById(parsed.data.orgId);
+    const timeZone = resolveOrgTimeZone(org?.timezone);
+    lateMinutes = shift
+      ? computeLateMinutes(
+          clockIn,
+          parsed.data.date,
+          shift.startTime,
+          shift.graceMinutes ?? 15,
+          timeZone
+        )
+      : 0;
+  }
 
   const set = {
     userId: parsed.data.userId,
@@ -128,7 +140,7 @@ export async function POST(req: Request) {
     status: parsed.data.status || "present",
     clockIn,
     clockOut,
-    lateMinutes: parsed.data.lateMinutes ?? 0,
+    lateMinutes,
     workedMinutes,
     note: parsed.data.note,
   };
