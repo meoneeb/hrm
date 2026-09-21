@@ -1,8 +1,53 @@
+import { z } from "zod";
 import { dbConnect } from "@/lib/db";
 import { Attendance } from "@/models/Attendance";
+import { User } from "@/models/User";
 import { requireUser, assertOrgAccess } from "@/lib/rbac";
 import { jsonOk, jsonErr } from "@/lib/utils";
-import { serializeMany } from "@/lib/serializers";
+import { serialize, serializeMany } from "@/lib/serializers";
+
+const statusEnum = z.enum([
+  "present",
+  "absent",
+  "half_day",
+  "leave",
+  "holiday",
+]);
+
+const createSchema = z.object({
+  orgId: z.string().min(1),
+  userId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  status: statusEnum.optional(),
+  clockIn: z.string().nullable().optional(),
+  clockOut: z.string().nullable().optional(),
+  note: z.string().optional(),
+  lateMinutes: z.number().optional(),
+  workedMinutes: z.number().optional(),
+});
+
+function canManageAttendance(type: string) {
+  return (
+    type === "superAdmin" || type === "orgAdmin" || type === "projectManager"
+  );
+}
+
+function computeWorked(
+  clockIn: Date | null | undefined,
+  clockOut: Date | null | undefined,
+  workedMinutes?: number
+) {
+  if (workedMinutes !== undefined && !Number.isNaN(workedMinutes)) {
+    return Math.max(0, workedMinutes);
+  }
+  if (clockIn && clockOut) {
+    return Math.max(
+      0,
+      Math.round((clockOut.getTime() - clockIn.getTime()) / 60000)
+    );
+  }
+  return 0;
+}
 
 export async function GET(req: Request) {
   const { user, error } = await requireUser();
@@ -38,4 +83,65 @@ export async function GET(req: Request) {
   await dbConnect();
   const rows = await Attendance.find(filter).sort({ date: -1 }).limit(500);
   return jsonOk(serializeMany(rows));
+}
+
+export async function POST(req: Request) {
+  const { user, error } = await requireUser();
+  if (error) return error;
+  if (!canManageAttendance(user!.type)) return jsonErr("Forbidden", 403);
+
+  const parsed = createSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return jsonErr("Invalid body", 400, parsed.error.flatten());
+  }
+
+  const denied = assertOrgAccess(user!, parsed.data.orgId);
+  if (denied) return denied;
+
+  await dbConnect();
+  const member = await User.findById(parsed.data.userId);
+  if (!member) return jsonErr("User not found", 404);
+
+  const clockIn = parsed.data.clockIn
+    ? new Date(parsed.data.clockIn)
+    : null;
+  const clockOut = parsed.data.clockOut
+    ? new Date(parsed.data.clockOut)
+    : null;
+  if (clockIn && Number.isNaN(clockIn.getTime())) {
+    return jsonErr("Invalid clockIn", 400);
+  }
+  if (clockOut && Number.isNaN(clockOut.getTime())) {
+    return jsonErr("Invalid clockOut", 400);
+  }
+
+  const workedMinutes = computeWorked(
+    clockIn,
+    clockOut,
+    parsed.data.workedMinutes
+  );
+
+  const set = {
+    userId: parsed.data.userId,
+    orgId: parsed.data.orgId,
+    date: parsed.data.date,
+    status: parsed.data.status || "present",
+    clockIn,
+    clockOut,
+    lateMinutes: parsed.data.lateMinutes ?? 0,
+    workedMinutes,
+    note: parsed.data.note,
+  };
+
+  const row = await Attendance.findOneAndUpdate(
+    {
+      userId: parsed.data.userId,
+      orgId: parsed.data.orgId,
+      date: parsed.data.date,
+    },
+    { $set: set },
+    { upsert: true, new: true }
+  );
+
+  return jsonOk(serialize(row!), "Saved", 201);
 }
