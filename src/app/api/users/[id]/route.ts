@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
+import { SalaryLog } from "@/models/SalaryLog";
 import {
   requireUser,
   assertOrgAccess,
@@ -29,6 +30,8 @@ const patchSchema = z.object({
       deductions: z.number().optional(),
     })
     .optional(),
+  /** Effective timestamp for salary log; omit/empty → now */
+  salaryDate: z.string().optional().nullable(),
   credits: z
     .array(z.object({ typeId: z.string(), balance: z.number() }))
     .optional(),
@@ -121,7 +124,36 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (data.designation !== undefined) target.designation = data.designation;
   if (data.shiftId !== undefined) target.shiftId = data.shiftId as never;
   if (data.salary !== undefined) {
+    const before = {
+      basic: Number(target.salary?.basic ?? 0),
+      allowances: Number(target.salary?.allowances ?? 0),
+      deductions: Number(target.salary?.deductions ?? 0),
+    };
     target.salary = { ...target.salary, ...data.salary };
+    const after = {
+      basic: Number(target.salary?.basic ?? 0),
+      allowances: Number(target.salary?.allowances ?? 0),
+      deductions: Number(target.salary?.deductions ?? 0),
+    };
+    const changed =
+      before.basic !== after.basic ||
+      before.allowances !== after.allowances ||
+      before.deductions !== after.deductions;
+    if (changed) {
+      const raw = data.salaryDate?.trim();
+      const at = raw ? new Date(raw) : new Date();
+      const effectiveAt = Number.isNaN(at.getTime()) ? new Date() : at;
+      await SalaryLog.create({
+        userId: target._id,
+        orgId: target.orgId || null,
+        changedBy: user!.id,
+        before,
+        after,
+        deltaBasic: after.basic - before.basic,
+        createdAt: effectiveAt,
+        updatedAt: effectiveAt,
+      });
+    }
   }
   if (data.credits !== undefined) {
     if (user!.type !== "superAdmin" && user!.type !== "orgAdmin") {

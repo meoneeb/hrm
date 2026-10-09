@@ -20,7 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { InitialsAvatar } from "@/components/ui/row-actions";
-import { formatShiftTime } from "@/lib/datetime";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
+import { formatDateTime, formatShiftTime } from "@/lib/datetime";
 
 type Member = {
   id: string;
@@ -42,6 +43,14 @@ type Shift = {
   name: string;
   startTime: string;
   endTime: string;
+};
+type SalaryLog = {
+  id: string;
+  before: { basic: number; allowances: number; deductions: number };
+  after: { basic: number; allowances: number; deductions: number };
+  deltaBasic: number;
+  createdAt: string;
+  changedBy?: { id: string; name: string } | null;
 };
 
 const NONE = "__none__";
@@ -68,12 +77,16 @@ export default function MemberProfilePage() {
   const { data: shifts = [] } = useSWR<Shift[]>(
     creditOrgId ? `/api/shifts?orgId=${creditOrgId}` : null
   );
+  const { data: salaryLogs = [], mutate: mutateSalaryLogs } = useSWR<
+    SalaryLog[]
+  >(params.id ? `/api/users/${params.id}/salary-logs` : null);
 
   const [salary, setSalary] = useState({
     basic: 0,
     allowances: 0,
     deductions: 0,
   });
+  const [salaryDate, setSalaryDate] = useState("");
   const [profile, setProfile] = useState({
     name: "",
     designation: "",
@@ -109,7 +122,7 @@ export default function MemberProfilePage() {
     setCreditBalances(map);
   }, [member, leaveTypes]);
 
-  async function save() {
+  async function saveProfile() {
     setMsg("");
     setError("");
     setPending(true);
@@ -121,13 +134,35 @@ export default function MemberProfilePage() {
           designation: profile.designation,
           code: profile.code,
           shiftId: profile.shiftId || null,
-          salary,
           ...(password ? { password } : {}),
         }),
       });
       setPassword("");
-      setMsg("Saved");
+      setMsg("Profile saved");
       await mutate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function saveSalary() {
+    setMsg("");
+    setError("");
+    setPending(true);
+    try {
+      await api<Member>(`/api/users/${params.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          salary,
+          salaryDate: salaryDate.trim() || null,
+        }),
+      });
+      setSalaryDate("");
+      setMsg("Salary saved");
+      await mutate();
+      await mutateSalaryLogs();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -178,6 +213,9 @@ export default function MemberProfilePage() {
           fxRate={currentOrg?.fxRate || 1}
         />
       </div>
+      {msg ? <p className="mb-4 text-sm text-teal-400">{msg}</p> : null}
+      {error ? <p className="mb-4 text-sm text-red-400">{error}</p> : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -247,7 +285,7 @@ export default function MemberProfilePage() {
                 placeholder="Leave blank to keep current"
               />
             </div>
-            <Button onClick={save} loading={pending}>
+            <Button onClick={saveProfile} loading={pending}>
               Save profile
             </Button>
           </CardContent>
@@ -288,11 +326,78 @@ export default function MemberProfilePage() {
                 }
               />
             </div>
-            {msg ? <p className="text-sm text-teal-400">{msg}</p> : null}
-            {error ? <p className="text-sm text-red-400">{error}</p> : null}
-            <Button onClick={save} loading={pending}>
+            <div className="space-y-1">
+              <Label>Effective date</Label>
+              <Input
+                type="datetime-local"
+                value={salaryDate}
+                onChange={(e) => setSalaryDate(e.target.value)}
+              />
+              <p className="text-xs text-gray-500">
+                Leave empty to use the current timestamp.
+              </p>
+            </div>
+            <Button onClick={saveSalary} loading={pending}>
               Save salary
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Salary history</CardTitle>
+            <p className="text-sm text-gray-400">
+              Logged when basic, allowances, or deductions change.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {salaryLogs.length === 0 ? (
+              <EmptyState message="No salary changes logged yet." />
+            ) : (
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>When</TH>
+                    <TH>By</TH>
+                    <TH>Basic</TH>
+                    <TH>Allowances</TH>
+                    <TH>Deductions</TH>
+                    <TH>Δ Basic</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {salaryLogs.map((log) => (
+                    <TR key={log.id}>
+                      <TD className="whitespace-nowrap text-gray-400">
+                        {formatDateTime(log.createdAt)}
+                      </TD>
+                      <TD>{log.changedBy?.name || "—"}</TD>
+                      <TD className="text-gray-400">
+                        {log.before.basic} → {log.after.basic}
+                      </TD>
+                      <TD className="text-gray-400">
+                        {log.before.allowances} → {log.after.allowances}
+                      </TD>
+                      <TD className="text-gray-400">
+                        {log.before.deductions} → {log.after.deductions}
+                      </TD>
+                      <TD
+                        className={
+                          log.deltaBasic > 0
+                            ? "text-teal-400"
+                            : log.deltaBasic < 0
+                              ? "text-red-400"
+                              : "text-gray-400"
+                        }
+                      >
+                        {log.deltaBasic > 0 ? "+" : ""}
+                        {log.deltaBasic}
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 

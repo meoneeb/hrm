@@ -1,16 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { api } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui/misc";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { RowActions } from "@/components/ui/row-actions";
-import { formatShiftTime } from "@/lib/datetime";
 
 type Org = {
   id: string;
@@ -29,18 +22,7 @@ type Org = {
   currency?: string;
   secondaryCurrency?: string | null;
   fxRate?: number;
-  defaultShiftId?: string | null;
 };
-
-type Shift = {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  graceMinutes: number;
-};
-
-const NONE = "__none__";
 
 const empty = {
   name: "",
@@ -52,174 +34,30 @@ const empty = {
 };
 
 export default function OrgsPage() {
+  const router = useRouter();
   const { data: orgs = [], error: swrError, mutate } = useSWR<Org[]>("/api/orgs");
-  const [form, setForm] = useState(empty);
-  const [editing, setEditing] = useState<Org | null>(null);
+  const [createForm, setCreateForm] = useState(empty);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [shiftForm, setShiftForm] = useState({
-    name: "General",
-    startTime: "09:00",
-    endTime: "18:00",
-    graceMinutes: "15",
-  });
-  const [editingShift, setEditingShift] = useState<Shift | null>(null);
-
-  const shiftsKey = editing ? `/api/shifts?orgId=${editing.id}` : null;
-  const { data: shifts = [], mutate: mutateShifts } = useSWR<Shift[]>(shiftsKey);
-
-  function resetShiftForm() {
-    setEditingShift(null);
-    setShiftForm({
-      name: "General",
-      startTime: "09:00",
-      endTime: "18:00",
-      graceMinutes: "15",
-    });
-  }
-
-  function startEditShift(s: Shift) {
-    setEditingShift(s);
-    setShiftForm({
-      name: s.name,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      graceMinutes: String(s.graceMinutes ?? 15),
-    });
-  }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setPending(true);
     try {
-      await api("/api/orgs", {
+      const res = await api<Org>("/api/orgs", {
         method: "POST",
         body: JSON.stringify({
-          ...form,
-          secondaryCurrency: form.secondaryCurrency || null,
-          fxRate: Number(form.fxRate) || 1,
+          ...createForm,
+          secondaryCurrency: createForm.secondaryCurrency || null,
+          fxRate: Number(createForm.fxRate) || 1,
         }),
       });
-      setForm(empty);
+      setCreateForm(empty);
       await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function onSaveEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing) return;
-    setPending(true);
-    try {
-      await api(`/api/orgs/${editing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: form.name,
-          timezone: form.timezone,
-          currency: form.currency,
-          secondaryCurrency: form.secondaryCurrency || null,
-          fxRate: Number(form.fxRate) || 1,
-          defaultShiftId: editing.defaultShiftId || null,
-        }),
-      });
-      setEditing(null);
-      resetShiftForm();
-      setForm(empty);
-      await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  function startEdit(o: Org) {
-    setEditing(o);
-    resetShiftForm();
-    setForm({
-      name: o.name,
-      code: o.code,
-      timezone: o.timezone,
-      currency: o.currency || "PKR",
-      secondaryCurrency: o.secondaryCurrency || "",
-      fxRate: String(o.fxRate || 1),
-    });
-  }
-
-  async function setDefaultShift(shiftId: string) {
-    if (!editing) return;
-    setPending(true);
-    try {
-      const res = await api<Org>(`/api/orgs/${editing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ defaultShiftId: shiftId || null }),
-      });
-      setEditing({ ...editing, defaultShiftId: res.data.defaultShiftId });
-      await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function saveShift(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing) return;
-    setPending(true);
-    setError("");
-    try {
-      const payload = {
-        name: shiftForm.name,
-        startTime: shiftForm.startTime,
-        endTime: shiftForm.endTime,
-        graceMinutes: Number(shiftForm.graceMinutes) || 15,
-      };
-      if (editingShift) {
-        await api(`/api/shifts/${editingShift.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await api("/api/shifts", {
-          method: "POST",
-          body: JSON.stringify({ orgId: editing.id, ...payload }),
-        });
+      if (res.data?.id) {
+        router.push(`/dashboard/orgs/${res.data.id}`);
       }
-      resetShiftForm();
-      await mutateShifts();
-      const updated = await mutate();
-      const fresh = (updated || orgs).find((o) => o.id === editing.id);
-      if (fresh) setEditing({ ...editing, defaultShiftId: fresh.defaultShiftId });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function deleteShift(s: Shift) {
-    if (!editing) return;
-    if (
-      !confirm(
-        `Delete shift “${s.name}”? Members on this shift will fall back to the org default.`
-      )
-    ) {
-      return;
-    }
-    setPending(true);
-    setError("");
-    try {
-      await api(`/api/shifts/${s.id}`, { method: "DELETE" });
-      if (editingShift?.id === s.id) resetShiftForm();
-      await mutateShifts();
-      const updated = await mutate();
-      const fresh = (updated || orgs).find((o) => o.id === editing.id);
-      if (fresh) setEditing(fresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -238,50 +76,48 @@ export default function OrgsPage() {
     }
   }
 
-  const displayError = error || (swrError instanceof Error ? swrError.message : "");
+  const displayError =
+    error || (swrError instanceof Error ? swrError.message : "");
 
   return (
     <div>
       <PageHeader
         title="Organizations"
-        description="Manage organizations, default shifts, and overnight schedules."
+        description="Create organizations and open one to manage details, shifts, and holidays."
       />
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>
-              {editing ? "Edit organization" : "New organization"}
-            </CardTitle>
+            <CardTitle>New organization</CardTitle>
           </CardHeader>
           <CardContent>
-            <form
-              onSubmit={editing ? onSaveEdit : onCreate}
-              className="space-y-3"
-            >
+            <form onSubmit={onCreate} className="space-y-3">
               <div className="space-y-1">
                 <Label>Name</Label>
                 <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  value={createForm.name}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, name: e.target.value })
+                  }
                   required
                 />
               </div>
-              {!editing ? (
-                <div className="space-y-1">
-                  <Label>Code</Label>
-                  <Input
-                    value={form.code}
-                    onChange={(e) => setForm({ ...form, code: e.target.value })}
-                    required
-                  />
-                </div>
-              ) : null}
+              <div className="space-y-1">
+                <Label>Code</Label>
+                <Input
+                  value={createForm.code}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, code: e.target.value })
+                  }
+                  required
+                />
+              </div>
               <div className="space-y-1">
                 <Label>Timezone</Label>
                 <Input
-                  value={form.timezone}
+                  value={createForm.timezone}
                   onChange={(e) =>
-                    setForm({ ...form, timezone: e.target.value })
+                    setCreateForm({ ...createForm, timezone: e.target.value })
                   }
                 />
               </div>
@@ -289,18 +125,21 @@ export default function OrgsPage() {
                 <div className="space-y-1">
                   <Label>Currency</Label>
                   <Input
-                    value={form.currency}
+                    value={createForm.currency}
                     onChange={(e) =>
-                      setForm({ ...form, currency: e.target.value })
+                      setCreateForm({ ...createForm, currency: e.target.value })
                     }
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>Secondary</Label>
                   <Input
-                    value={form.secondaryCurrency}
+                    value={createForm.secondaryCurrency}
                     onChange={(e) =>
-                      setForm({ ...form, secondaryCurrency: e.target.value })
+                      setCreateForm({
+                        ...createForm,
+                        secondaryCurrency: e.target.value,
+                      })
                     }
                   />
                 </div>
@@ -309,59 +148,22 @@ export default function OrgsPage() {
                 <Label>FX rate</Label>
                 <Input
                   type="number"
-                  value={form.fxRate}
-                  onChange={(e) => setForm({ ...form, fxRate: e.target.value })}
+                  value={createForm.fxRate}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, fxRate: e.target.value })
+                  }
                 />
               </div>
-              {editing ? (
-                <div className="space-y-1">
-                  <Label>Default shift</Label>
-                  <Select
-                    value={editing.defaultShiftId || NONE}
-                    onValueChange={(v) =>
-                      setDefaultShift(v === NONE ? "" : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select shift" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>None</SelectItem>
-                      {shifts.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
               {displayError ? (
                 <p className="text-sm text-red-400">{displayError}</p>
               ) : null}
-              <div className="flex gap-2">
-                {editing ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="flex-1"
-                    disabled={pending}
-                    onClick={() => {
-                      setEditing(null);
-                      resetShiftForm();
-                      setForm(empty);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-                <Button type="submit" className="flex-1" loading={pending}>
-                  {editing ? "Save" : "Create org"}
-                </Button>
-              </div>
+              <Button type="submit" className="w-full" loading={pending}>
+                Create org
+              </Button>
             </form>
           </CardContent>
         </Card>
+
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>All orgs</CardTitle>
@@ -402,9 +204,16 @@ export default function OrgsPage() {
                         <RowActions
                           actions={[
                             {
+                              label: "View",
+                              variant: "view",
+                              onClick: () =>
+                                router.push(`/dashboard/orgs/${o.id}`),
+                            },
+                            {
                               label: "Edit",
                               variant: "edit",
-                              onClick: () => startEdit(o),
+                              onClick: () =>
+                                router.push(`/dashboard/orgs/${o.id}?edit=1`),
                             },
                             {
                               label: "Deactivate",
@@ -423,149 +232,6 @@ export default function OrgsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {editing ? (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Shifts for {editing.name}</CardTitle>
-            <p className="text-sm text-gray-400">
-              Overnight shifts use end time earlier than start (e.g. 21:00–01:00).
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-6 lg:grid-cols-2">
-            <form onSubmit={saveShift} className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                {editingShift ? "Edit shift" : "Add shift"}
-              </p>
-              <div className="space-y-1">
-                <Label>Name</Label>
-                <Input
-                  value={shiftForm.name}
-                  onChange={(e) =>
-                    setShiftForm({ ...shiftForm, name: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <Label>Start</Label>
-                  <Input
-                    type="time"
-                    value={shiftForm.startTime}
-                    onChange={(e) =>
-                      setShiftForm({ ...shiftForm, startTime: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>End</Label>
-                  <Input
-                    type="time"
-                    value={shiftForm.endTime}
-                    onChange={(e) =>
-                      setShiftForm({ ...shiftForm, endTime: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Grace</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={shiftForm.graceMinutes}
-                    onChange={(e) =>
-                      setShiftForm({
-                        ...shiftForm,
-                        graceMinutes: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {editingShift ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="flex-1"
-                    disabled={pending}
-                    onClick={resetShiftForm}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-                <Button type="submit" className="flex-1" loading={pending}>
-                  {editingShift ? "Save shift" : "Add shift"}
-                </Button>
-              </div>
-            </form>
-            <div>
-              {shifts.length === 0 ? (
-                <EmptyState message="No shifts yet — General is created on org create." />
-              ) : (
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH>Name</TH>
-                      <TH>Hours</TH>
-                      <TH>Grace</TH>
-                      <TH>Default</TH>
-                      <TH className="text-right">Actions</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {shifts.map((s) => (
-                      <TR key={s.id}>
-                        <TD>{s.name}</TD>
-                        <TD className="text-gray-400">
-                          {formatShiftTime(s.startTime)} –{" "}
-                          {formatShiftTime(s.endTime)}
-                        </TD>
-                        <TD className="text-gray-400">{s.graceMinutes}m</TD>
-                        <TD>
-                          {editing.defaultShiftId === s.id ? (
-                            <Badge variant="success">default</Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={pending}
-                              onClick={() => setDefaultShift(s.id)}
-                            >
-                              Make default
-                            </Button>
-                          )}
-                        </TD>
-                        <TD>
-                          <RowActions
-                            actions={[
-                              {
-                                label: "Edit",
-                                variant: "edit",
-                                disabled: pending,
-                                onClick: () => startEditShift(s),
-                              },
-                              {
-                                label: "Delete",
-                                variant: "delete",
-                                disabled: pending,
-                                onClick: () => deleteShift(s),
-                              },
-                            ]}
-                          />
-                        </TD>
-                      </TR>
-                    ))}
-                  </TBody>
-                </Table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }
