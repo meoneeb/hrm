@@ -7,3 +7,5 @@ export { LeaveType } from "./LeaveType";
 export { Leave } from "./Leave";
 export { Payroll } from "./Payroll";
 export { Payslip } from "./Payslip";
+export { Holiday } from "./Holiday";
+export { SalaryLog } from "./SalaryLog";

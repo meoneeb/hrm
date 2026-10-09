@@ -2,11 +2,11 @@
   "name": "figics-workforce",
   "version": "0.1.0",
   "private": true,
-  "description": "Figics workforce — human resource management for organizations, attendance, leave, and payroll.",
+  "description": "Figics workforce \u2014 human resource management for organizations, attendance, leave, and payroll.",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "start": "next start",
+    "dev": "node init && next dev --turbopack",
+    "build": "node init && next build --turbopack",
+    "start": "node init && next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts"
   },

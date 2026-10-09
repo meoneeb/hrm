@@ -7,8 +7,9 @@ import { Leave } from "@/models/Leave";
 import { LeaveType } from "@/models/LeaveType";
 import { User } from "@/models/User";
 import { requireUser, assertOrgAccess, canRunPayroll } from "@/lib/rbac";
-import { jsonOk, jsonErr, workingDaysInMonth } from "@/lib/utils";
+import { jsonOk, jsonErr } from "@/lib/utils";
 import { serializeMany, serialize } from "@/lib/serializers";
+import { workingDaysForOrg } from "@/lib/holidays";
 
 const generateSchema = z.object({
   orgId: z.string().min(1),
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const workingDays = workingDaysInMonth(year, month);
+  const workingDays = await workingDaysForOrg(orgId, year, month);
   const prefix = `${year}-${String(month).padStart(2, "0")}`;
 
   const staff = await User.find({

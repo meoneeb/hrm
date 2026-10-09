@@ -106,6 +106,9 @@ export default function PayrollPage() {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Generate payroll</CardTitle>
+            <p className="text-sm text-gray-400">
+              Working days = weekdays (Mon–Fri) minus org holidays.
+            </p>
           </CardHeader>
           <CardContent className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
